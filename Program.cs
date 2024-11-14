@@ -107,11 +107,53 @@ app.MapPost("/login", async (AppDbContext db, [FromBody] LoginData usuario) =>
     user.AuthToken = tokenString;
     await db.SaveChangesAsync();
 
-    return Results.Ok(new ServerResult<string>(true, "Login successful", tokenString));
+    user.Password = "🤣😁👍";
+    user.Id = 0;
+
+    return Results.Ok(new ServerResult<Usuario>(true, "Login successful", user));
 });
 
 
+//informacion de usuario
+app.MapGet("/info_usuario", async (AppDbContext db, HttpContext context) =>
+{
+    var token = context.Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
+    var user = await db.Usuarios.FirstOrDefaultAsync(u => u.AuthToken == token);
+    if (user == null || user.AuthToken != token)
+    {
+        return Results.Ok(new ServerResult<string>(false, "Unauthorized", error: "Invalid token"));
+    }
+    user.Password = "🤣😁👍";
+    user.Id = 0;
+    return Results.Ok(new ServerResult<Usuario>(true, "Usuario cargado", user));
+});
 
+
+// Cambiar contraseña Endpoint
+app.MapPost("/cambiar_password", async (AppDbContext db, HttpContext context, [FromBody] PasswordResetData data) =>
+{
+    var token = context.Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
+    var user = await db.Usuarios.FirstOrDefaultAsync(u => u.AuthToken == token);
+    if (user == null || user.AuthToken != token)
+    {
+        return Results.Ok(new ServerResult<string>(false, "Unauthorized", error: "Invalid token"));
+    }
+
+    if (data.NewPassword != data.ConfirmPassword)
+    {
+        return Results.Ok(new ServerResult<string>(false, "Error", error: "Las contraseñas no coinciden"));
+    }
+
+    if (data.OldPassword != user.Password)
+    {
+        return Results.Ok(new ServerResult<string>(false, "Error", error: "La contraseña actual es incorrecta"));
+    }
+
+    user.Password = data.NewPassword;
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new ServerResult<string>(true, "Contraseña cambiada exitosamente"));
+});
 
 
 // Noticias Endpoint (requires Authorization)
@@ -133,7 +175,6 @@ app.MapGet("/noticias", async (AppDbContext db, HttpContext context) =>
 
     return Results.Ok(new ServerResult<List<Noticia>>(true, "Noticias cargadas", noticias));
 });
-
 
 
 // Eventos Endpoint
@@ -175,6 +216,20 @@ app.MapGet("/deudas", async (AppDbContext db, HttpContext context) =>
     return Results.Ok(deudas);
 });
 
+
+// Horarios Endpoint
+app.MapGet("/horarios", async (AppDbContext db, HttpContext context) =>
+{
+    var token = context.Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
+    var user = await db.Usuarios.FirstOrDefaultAsync(u => u.AuthToken == token);
+    if (user == null || user.AuthToken != token)
+    {
+        return Results.Ok(new ServerResult<string>(false, "Unauthorized", error: "Invalid token"));
+    }
+    var horarios = await db.Horarios.ToListAsync();
+    return Results.Ok(horarios);
+});
+
 app.Run();
 
 async Task RegistrarLog(AppDbContext db, Usuario user, string endpoint, string parametros)
@@ -188,4 +243,13 @@ async Task RegistrarLog(AppDbContext db, Usuario user, string endpoint, string p
     };
     db.Logs.Add(log);
     await db.SaveChangesAsync();
+}
+
+
+public class PasswordResetData
+{
+    public string OldPassword { get; set; }
+    public string NewPassword { get; set; }
+
+    public string ConfirmPassword { get; set; }
 }
